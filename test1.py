@@ -16,6 +16,7 @@ from keras import layers
 from keras import Model
 from tensorflow.keras.optimizers import RMSprop
 from keras.callbacks import ModelCheckpoint
+import os
 
 # ========== Rectangle ========================================================
 
@@ -109,7 +110,8 @@ class ModelOrientation:
 
         self.model.compile(loss='mean_squared_error', optimizer='adam')
 
-        self.model.load_weights('./unet.hdf5_1')
+        if os.path.isfile("./weights.hdf5"):
+            self.model.load_weights('./weights.hdf5')
 
         print(self.model.summary())
 
@@ -195,7 +197,7 @@ class ModelOrientation:
         print("----------------")
         print("Train")
 
-        self.model_checkpoint = ModelCheckpoint('unet.hdf5_1', monitor='loss', verbose=1, save_best_only=True)
+        self.model_checkpoint = ModelCheckpoint('weights.hdf5', monitor='loss', verbose=1, save_best_only=True, save_weights_only=True)
 
         if i < 10000:
             self.model.fit(self.features[:i], self.targets[:i], shuffle=True, callbacks=[self.model_checkpoint])
