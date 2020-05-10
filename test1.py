@@ -52,6 +52,10 @@ class Rectangle:
 
 
 class ModelOrientation:
+    """
+    Le model doit trouver le deplacement effectue par le rectangle dans l'image vide
+    Pour cela il dispose du flot optique entre l'image precedente et celle actuelle
+    """
     def __init__(self, img_hau, img_lar, rect_x, rect_y, rect_hau, rect_lar):
         self.hau = img_hau
         self.lar = img_lar
@@ -67,37 +71,20 @@ class ModelOrientation:
         img_input = layers.Input(shape=(self.hau, self.lar, 2))
 
         x = layers.Conv2D(16, 3, activation='relu')(img_input)
-        x = layers.Conv2D(32, 3, activation='relu')(x)
-        x = layers.MaxPooling2D(2)(x)
-        x = layers.Dropout(0.5)(x)
-
-        x = layers.Conv2D(64, 3, activation='relu')(img_input)
-        x = layers.Conv2D(128, 3, activation='relu')(x)
-        x = layers.MaxPooling2D(2)(x)
-        x = layers.Dropout(0.5)(x)
-
-        x = layers.Conv2D(64, 3, activation='relu')(img_input)
+        x = layers.Conv2D(32, 3, activation='relu')(img_input)
         x = layers.Conv2D(64, 3, activation='relu')(x)
         x = layers.MaxPooling2D(2)(x)
         x = layers.Dropout(0.5)(x)
 
-        x = layers.Conv2D(64, 3, activation='relu')(img_input)
-        x = layers.Conv2D(128, 3, activation='relu')(x)
-        x = layers.MaxPooling2D(2)(x)
-        x = layers.Dropout(0.5)(x)
+        # x = layers.Conv2D(64, 3, activation='relu')(x)
+        # x = layers.Conv2D(128, 3, activation='relu')(x)
+        # x = layers.MaxPooling2D(2)(x)
+        # x = layers.Dropout(0.5)(x)
 
         # Flatten feature map to a 1-dim tensor so we can add fully connected layers
         x = layers.Flatten()(x)
 
         # Create a fully connected layer with ReLU activation
-        x = layers.Dense(200, activation='relu')(x)
-        x = layers.Dropout(0.5)(x)
-        x = layers.Dense(200, activation='relu')(x)
-        x = layers.Dropout(0.5)(x)
-        x = layers.Dense(200, activation='relu')(x)
-        x = layers.Dropout(0.5)(x)
-        x = layers.Dense(100, activation='relu')(x)
-        x = layers.Dropout(0.5)(x)
         x = layers.Dense(50, activation='relu')(x)
         x = layers.Dropout(0.5)(x)
         x = layers.Dense(50, activation='relu')(x)
@@ -124,13 +111,13 @@ class ModelOrientation:
 
         for i in tqdm(range(steps)):
 
-            if i % 1000 == 0 and i > 0:
+            if i % (size_of_training / 10) == 0 and i > 0:
                 # on entraine le model sur les donnees crees
-                self.train(i)
+                self.train(i, size_of_training)
 
-            self.create_data(i)
+            self.create_data(i, size_of_training)
 
-    def create_data(self, i):
+    def create_data(self, i, size_of_training):
         """
         cree des donnees et remplace les plus vielles au passage
         """
@@ -166,8 +153,8 @@ class ModelOrientation:
 
         flow = cv.calcOpticalFlowFarneback(self.prvs, next, None, 0.5, 3, 15, 3, 5, 1.2, 0)
 
-        self.features[i % 10000, :] = flow.flatten()
-        self.targets[i % 10000, :] = [longx, longy]
+        self.features[i % size_of_training, :] = flow.flatten()
+        self.targets[i % size_of_training, :] = [longx, longy]
 
         # mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
 
@@ -189,17 +176,17 @@ class ModelOrientation:
 
         self.prvs = next
 
-    def train(self, i):
+    def train(self, i, size_of_training):
         print("==========================================================")
         print("Step: ", i)
 
-        self.features = np.reshape(self.features, (10000, self.hau, self.lar, 2))
+        self.features = np.reshape(self.features, (size_of_training, self.hau, self.lar, 2))
         print("----------------")
         print("Train")
 
         self.model_checkpoint = ModelCheckpoint('weights.hdf5', monitor='loss', verbose=1, save_best_only=True, save_weights_only=True)
 
-        if i < 10000:
+        if i < size_of_training:
             self.model.fit(self.features[:i], self.targets[:i], shuffle=True, callbacks=[self.model_checkpoint])
         else:
             self.model.fit(self.features, self.targets, shuffle=True, callbacks=[self.model_checkpoint])
@@ -216,7 +203,7 @@ class ModelOrientation:
 
         # on reset les arrays
 
-        self.features = np.reshape(self.features, (10000, 100 * 120 * 2))
+        self.features = np.reshape(self.features, (size_of_training, self.hau * self.lar * 2))
 
         print()
 
