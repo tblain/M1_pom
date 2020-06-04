@@ -11,7 +11,7 @@ import os
 import math
 
 import keras
-from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, GaussianNoise
 from tensorflow.keras.layers import Conv2D, Lambda, MaxPooling2D
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers
@@ -62,6 +62,7 @@ class Rectangle:
 # ========== Model ============================================================
 
 
+
 class ModelOrientation:
     """
     le but est de prendre une image
@@ -78,12 +79,13 @@ class ModelOrientation:
         self.lar = cadre_lar
         self.cx = cadre_x
         self.cy = cadre_y
-        self.save_name = 'weights-test2.4.hdf5'
+        self.save_name = 'weights-test2_bruit.hdf5'
 
         self.create_model()
 
     def create_model(self):
         img_input = layers.Input(shape=(self.hau, self.lar, 2))
+        x = GaussianNoise(0.1)(img_input)
 
         x = layers.Conv2D(32, 3, activation='relu')(img_input)
         x = layers.MaxPooling2D(2)(x)
@@ -96,6 +98,14 @@ class ModelOrientation:
         x = layers.Conv2D(64, 3, activation='relu')(x)
         x = layers.MaxPooling2D(2)(x)
         x = layers.Dropout(0.5)(x)
+
+        x = layers.Conv2D(64, 3, activation='relu')(x)
+        x = layers.MaxPooling2D(2)(x)
+        x = layers.Dropout(0.5)(x)
+
+        # x = layers.Conv2D(64, 3, activation='relu')(x)
+        # x = layers.MaxPooling2D(2)(x)
+        # x = layers.Dropout(0.5)(x)
 
         # x = layers.Conv2D(64, 3, activation='relu')(img_input)
         # x = layers.Conv2D(128, 3, activation='relu')(x)
@@ -124,6 +134,11 @@ class ModelOrientation:
         # x = layers.Dropout(0.5)(x)
         # x = layers.Dense(100, activation='relu')(x)
         # x = layers.Dropout(0.5)(x)
+
+        x = layers.Dense(50, activation='relu')(x)
+        x = layers.Dropout(0.5)(x)
+        x = layers.Dense(50, activation='relu')(x)
+        x = layers.Dropout(0.5)(x)
         x = layers.Dense(50, activation='relu')(x)
         x = layers.Dropout(0.5)(x)
         x = layers.Dense(50, activation='relu')(x)
@@ -149,7 +164,7 @@ class ModelOrientation:
         self.next = np.zeros((self.hau, self.lar))
 
         # arrays pour contenir les donnees pour le train
-        self.features = np.zeros((size_of_training, self.hau * self.lar * 2), dtype='float32')
+        self.features = np.zeros((size_of_training, self.hau * self.lar * 2), dtype='float16')
         self.targets = np.zeros((size_of_training, 2))
 
         for i in tqdm(range(steps)):
@@ -159,7 +174,7 @@ class ModelOrientation:
             elif i % 100 == 0 and i > 0:
                 # on fait un grand bon dans l'image car sinon le cadre
                 # a tendance a rester dans la meme region
-                longx, longy = self.get_new_coords(10, 10, 1000, 1000)
+                longx, longy = self.get_new_coords(10, 10, 200, 200)
                 self.move(longx, longy)
                 _, self.next = self.draw()
 
@@ -170,8 +185,8 @@ class ModelOrientation:
         longx = random.randint(minx, maxx)
         longy = random.randint(miny, maxy)
 
-        longx = min(self.img.shape[0] // 2 - self.lar, longx)
-        longy = min(self.img.shape[1] // 2 - self.lar, longy)
+        # longx = min(self.img.shape[0] // 2 - self.lar, longx)
+        # longy = min(self.img.shape[1] // 2 - self.lar, longy)
         # print(longx, longy)
 
         # # pour choisir l'axe sur lequel on deplace
@@ -211,6 +226,9 @@ class ModelOrientation:
 
         self.features[i % size_of_training, :] = flow.flatten()
         self.targets[i % size_of_training, :] = [longx, longy]
+
+        # for x in range(100):
+            # print(self.targets[x])
 
         # mag, ang = cv.cartToPolar(flow[..., 0], flow[..., 1])
 
@@ -272,16 +290,16 @@ class ModelOrientation:
 
 
         if i < size_of_training:
-            self.model.fit(self.features[:i], self.targets[:i], shuffle=True, callbacks=[self.model_checkpoint])
+            self.model.fit(self.features[:i], self.targets[:i], shuffle=True, batch_size=20, callbacks=[self.model_checkpoint])
         else:
-            self.model.fit(self.features, self.targets, shuffle=True, callbacks=[self.model_checkpoint])
+            self.model.fit(self.features, self.targets, shuffle=True, batch_size=20, callbacks=[self.model_checkpoint])
 
         print("----------------")
         print("Evaluate on test data")
 
         indexes = np.random.randint(0, min(i, size_of_training), (100,))
-        x_test = self.features[:100]
-        y_test = self.targets[:100]
+        x_test = self.features[:10]
+        y_test = self.targets[:10]
         results = self.model.test_on_batch(x_test, y_test)
 
         print("test loss", results)
@@ -315,5 +333,5 @@ if __name__ == "__main__":
     # ret, frame1 = cap.read()
     # prvs = cv.cvtColor(frame1, cv.COLOR_BGR2GRAY)
 
-    model = ModelOrientation(200, 200, 20, 20)
-    model.fit(img, 10000000000000, 10000)
+    model = ModelOrientation(400, 400, 20, 20)
+    model.fit(img, 10000000000000, 400)
